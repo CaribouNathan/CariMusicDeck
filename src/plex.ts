@@ -47,8 +47,8 @@ export interface PlayerTimeline {
 	playQueueItemID: string;
 }
 
-const PRODUCT = "CariCover";
-export const PLEX_VERSION = "1.3.0";
+const PRODUCT = "CariMusicDeck";
+export const PLEX_VERSION = "1.3.1";
 
 export function plexHeaders(clientId: string, token?: string): Record<string, string> {
 	const h: Record<string, string> = {
@@ -57,7 +57,7 @@ export function plexHeaders(clientId: string, token?: string): Record<string, st
 		"X-Plex-Version": PLEX_VERSION,
 		"X-Plex-Client-Identifier": clientId,
 		"X-Plex-Platform": "macOS",
-		"X-Plex-Device-Name": "Stream Deck (CariCover)",
+		"X-Plex-Device-Name": "Stream Deck (CariMusicDeck)",
 		"X-Plex-Provides": "controller",
 	};
 	if (token) h["X-Plex-Token"] = token;

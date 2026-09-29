@@ -1,4 +1,4 @@
-// CariCover — point d'entrée : moteur + enregistrement des actions.
+// CariMusicDeck — point d'entrée : moteur + enregistrement des actions.
 import streamDeck from "@elgato/streamdeck";
 import type { JsonObject } from "@elgato/utils";
 import { randomUUID } from "node:crypto";

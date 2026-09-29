@@ -1,17 +1,17 @@
-// Génère le profil Stream Deck XL prêt à l'emploi « CariCover XL » (archive .streamDeckProfile, format profil v2).
+// Génère le profil Stream Deck XL prêt à l'emploi « CariMusicDeck XL » (archive .streamDeckProfile, format profil v2).
 // Déterministe : mêmes identifiants à chaque build. Appelé par build.mjs.
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const NS = "fr.cariboulabs.caricover";
-export const PROFILE_NAME = "CariCover XL";
+export const PROFILE_NAME = "CariMusicDeck XL";
 const PLUGIN_DIR = "fr.cariboulabs.caricover.sdPlugin";
 
 // Disposition 8×4 : mosaïque 4×4 à gauche, commandes à droite.
 const cover = [];
 for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) cover.push({ x, y, a: "cover", name: "Pochette en lecture", settings: { layout: "auto", text: "none", press: "playpause" }, title: true });
-const keys = [
+export const keys = [
 	...cover,
 	{ x: 4, y: 0, a: "title", name: "Titre", settings: { field: "title", overflow: "scroll" } },
 	{ x: 5, y: 0, a: "title", name: "Titre", settings: { field: "artist", overflow: "scroll" } },
@@ -32,7 +32,7 @@ const keys = [
 ];
 
 function stableUuid(input) {
-	const b = createHash("sha1").update(`caricover:${input}`).digest().subarray(0, 16);
+	const b = createHash("sha1").update(`carimusicdeck:${input}`).digest().subarray(0, 16);
 	b[6] = (b[6] & 0x0f) | 0x50;
 	b[8] = (b[8] & 0x3f) | 0x80;
 	const h = b.toString("hex");
@@ -55,7 +55,7 @@ function actionEntry(k, version) {
 		ActionID: stableUuid(`action:${k.x},${k.y}`),
 		LinkedTitle: true,
 		Name: k.name,
-		Plugin: { Name: "CariCover", UUID: NS, Version: version },
+		Plugin: { Name: "CariMusicDeck", UUID: NS, Version: version },
 		Resources: null,
 		Settings: k.settings,
 		State: 0,
