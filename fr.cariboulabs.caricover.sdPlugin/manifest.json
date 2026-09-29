@@ -1,0 +1,317 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "CariCover",
+	"Version": "1.3.0.0",
+	"Author": "Caribou Labs",
+	"Description": "Pochette, titre, temps, volume et commandes de lecture pour Apple Music, Plex (Plexamp) et CariRadio — suit automatiquement la source en cours.",
+	"Category": "CariCover",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"Icon": "imgs/plugin/marketplace",
+	"URL": "https://github.com/CaribouNathan",
+	"CodePath": "bin/plugin.js",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "mac",
+			"MinimumVersion": "13"
+		}
+	],
+	"Nodejs": {
+		"Version": "24"
+	},
+	"UUID": "fr.cariboulabs.caricover",
+	"Actions": [
+		{
+			"Name": "Pochette en lecture",
+			"UUID": "fr.cariboulabs.caricover.cover",
+			"Icon": "imgs/actions/cover/icon",
+			"Tooltip": "Pochette de l'album en cours. Plusieurs touches voisines = mosaïque. Appui : lecture/pause, maintien : stop.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": true,
+			"States": [
+				{
+					"Image": "imgs/actions/cover/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": true
+				}
+			]
+		},
+		{
+			"Name": "Lecture / Pause",
+			"UUID": "fr.cariboulabs.caricover.playpause",
+			"Icon": "imgs/actions/playpause/icon",
+			"Tooltip": "Lecture/pause de la source en cours ; maintien : stop.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/playpause/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Précédent",
+			"UUID": "fr.cariboulabs.caricover.previous",
+			"Icon": "imgs/actions/previous/icon",
+			"Tooltip": "Piste précédente (début du morceau après 3 s) ; maintien : recul continu.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/previous/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Suivant",
+			"UUID": "fr.cariboulabs.caricover.next",
+			"Icon": "imgs/actions/next/icon",
+			"Tooltip": "Piste suivante ; maintien : avance continue.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/next/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Aléatoire",
+			"UUID": "fr.cariboulabs.caricover.shuffle",
+			"Icon": "imgs/actions/shuffle/icon",
+			"Tooltip": "Active/désactive la lecture aléatoire.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/shuffle/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Répétition",
+			"UUID": "fr.cariboulabs.caricover.repeat",
+			"Icon": "imgs/actions/repeat/icon",
+			"Tooltip": "Désactivée → tout → un seul.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/repeat/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Titre",
+			"UUID": "fr.cariboulabs.caricover.title",
+			"Icon": "imgs/actions/title/icon",
+			"Tooltip": "Titre, artiste ou album en cours, taille automatique.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/title/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Infos piste",
+			"UUID": "fr.cariboulabs.caricover.info",
+			"Icon": "imgs/actions/info/icon",
+			"Tooltip": "Codec, qualité et position (7/14).",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/info/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Temps",
+			"UUID": "fr.cariboulabs.caricover.time",
+			"Icon": "imgs/actions/time/icon",
+			"Tooltip": "Écoulé / total ou restant, avec barre de progression. Appui : bascule.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/time/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Note",
+			"UUID": "fr.cariboulabs.caricover.rating",
+			"Icon": "imgs/actions/rating/icon",
+			"Tooltip": "Étoiles de la piste en cours ; appui : +1 pas.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": false,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/rating/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Volume +",
+			"UUID": "fr.cariboulabs.caricover.volup",
+			"Icon": "imgs/actions/volup/icon",
+			"Tooltip": "Monte le volume de la source en cours.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/volup/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Volume −",
+			"UUID": "fr.cariboulabs.caricover.voldown",
+			"Icon": "imgs/actions/voldown/icon",
+			"Tooltip": "Baisse le volume ; maintien : sourdine + pause.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/voldown/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Playlist",
+			"UUID": "fr.cariboulabs.caricover.playlist",
+			"Icon": "imgs/actions/playlist/icon",
+			"Tooltip": "Lance une playlist Plex ou Apple Music.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": true,
+			"States": [
+				{
+					"Image": "imgs/actions/playlist/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": true
+				}
+			]
+		},
+		{
+			"Name": "Radio",
+			"UUID": "fr.cariboulabs.caricover.radio",
+			"Icon": "imgs/actions/radio/icon",
+			"Tooltip": "CariRadio (Radio Choco) : appui = lance/lecture/pause, maintien = affiche l'app.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/radio/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": false
+				}
+			]
+		}
+	],
+	"Profiles": [
+		{
+			"Name": "CariCover XL",
+			"DeviceType": 2,
+			"Readonly": false,
+			"AutoInstall": true,
+			"DontAutoSwitchWhenInstalled": true
+		}
+	]
+}

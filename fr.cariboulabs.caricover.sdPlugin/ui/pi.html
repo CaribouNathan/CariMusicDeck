@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>CariCover</title>
+<style>
+	:root {
+		--bg: #2d2d2d;
+		--fg: #d8d8d8;
+		--muted: #969696;
+		--field: #3d3d3d;
+		--field-border: #4a4a4a;
+		--accent: #0a84ff;
+		--ok: #30d158;
+		--err: #ff453a;
+	}
+	* { box-sizing: border-box; }
+	body {
+		margin: 0;
+		padding: 8px 12px 16px 4px;
+		background: var(--bg);
+		color: var(--fg);
+		font: 12px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+	h2 {
+		margin: 14px 0 6px 102px;
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.row { display: flex; align-items: center; min-height: 26px; margin: 3px 0; }
+	.row > label:first-child {
+		flex: 0 0 94px;
+		padding-right: 8px;
+		text-align: right;
+		color: var(--fg);
+	}
+	.row > .ctl { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+	input[type="text"], input[type="password"], select {
+		width: 100%;
+		height: 24px;
+		padding: 0 7px;
+		border: 1px solid var(--field-border);
+		border-radius: 5px;
+		background: var(--field);
+		color: var(--fg);
+		font: inherit;
+		outline: none;
+		-webkit-user-select: text;
+		user-select: text;
+	}
+	input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.35); }
+	input[type="checkbox"] { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
+	input[type="range"] { flex: 1; accent-color: var(--accent); }
+	.val { width: 38px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+	button {
+		height: 24px;
+		padding: 0 12px;
+		border: 1px solid var(--field-border);
+		border-radius: 5px;
+		background: #4a4a4a;
+		color: var(--fg);
+		font: inherit;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+	button:hover { background: #555; }
+	button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+	button.primary:hover { filter: brightness(1.1); }
+	button:disabled { opacity: 0.5; cursor: default; }
+	.note { margin: 2px 0 4px 102px; color: var(--muted); font-size: 11px; }
+	.note.ok { color: var(--ok); }
+	.note.err { color: var(--err); }
+	.status {
+		margin: 2px 0 6px 102px;
+		padding: 7px 9px;
+		border-radius: 7px;
+		background: #242424;
+		border: 1px solid #3a3a3a;
+		color: var(--fg);
+		font-size: 11px;
+		word-break: break-word;
+	}
+	.hidden { display: none !important; }
+	a { color: var(--accent); text-decoration: none; cursor: pointer; }
+	details.general { margin-top: 12px; border-top: 1px solid #3a3a3a; }
+	details.general > summary {
+		margin: 10px 0 2px 102px;
+		cursor: pointer;
+		color: var(--muted);
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		list-style: none;
+	}
+	details.general > summary::before { content: "▸ "; }
+	details.general[open] > summary::before { content: "▾ "; }
+	[data-for] { display: none; }
+	[data-for].on { display: block; }
+</style>
+</head>
+<body>
+	<div class="status" id="status">…</div>
+
+	<!-- ============ réglages propres à chaque action ============ -->
+	<div data-for="cover">
+		<h2>Pochette</h2>
+		<div class="row"><label for="layout">Disposition</label><div class="ctl">
+			<select id="layout" data-scope="action">
+				<option value="auto">Mosaïque auto (touches voisines)</option>
+				<option value="single">Pochette entière sur la touche</option>
+			</select></div></div>
+		<div class="row"><label for="text">Texte</label><div class="ctl">
+			<select id="text" data-scope="action">
+				<option value="none">Aucun (titre Stream Deck)</option>
+				<option value="title">Titre du morceau</option>
+				<option value="artist">Artiste</option>
+				<option value="album">Album</option>
+				<option value="source">Source</option>
+			</select></div></div>
+		<div class="row"><label for="press">Appui</label><div class="ctl">
+			<select id="press" data-scope="action">
+				<option value="playpause">Lecture/Pause (maintien : stop)</option>
+				<option value="none">Rien</option>
+			</select></div></div>
+		<div class="row"><label for="coverProgress">Barre de progression</label><div class="ctl"><input type="checkbox" id="coverProgress" data-scope="global" /></div></div>
+		<div class="note">Barre continue sur la rangée du bas de la mosaïque (réglage commun à toutes les pochettes).</div>
+	</div>
+
+	<div data-for="playpause">
+		<h2>Lecture / Pause</h2>
+		<div class="note">Appui : lecture/pause · maintien : stop.</div>
+	</div>
+
+	<div data-for="previous next">
+		<h2>Piste</h2>
+		<div class="row"><label for="seekStep">Pas de recherche</label><div class="ctl">
+			<select id="seekStep" data-scope="action">
+				<option value="10">10 s</option><option value="5">5 s</option><option value="15">15 s</option><option value="30">30 s</option>
+			</select></div></div>
+		<div class="note">Appui : piste suivante/précédente (précédent revient au début après 3 s). Maintien : avance/recule en continu.</div>
+	</div>
+
+	<div data-for="shuffle repeat info">
+		<div class="note" style="margin-top:10px">Aucun réglage : l'action suit la source en cours de lecture.</div>
+	</div>
+
+	<div data-for="title">
+		<h2>Texte affiché</h2>
+		<div class="row"><label for="field">Champ</label><div class="ctl">
+			<select id="field" data-scope="action">
+				<option value="title">Titre</option>
+				<option value="artist">Artiste</option>
+				<option value="album">Album</option>
+				<option value="artist-title">Artiste — Titre</option>
+			</select></div></div>
+		<div class="row"><label for="overflow">Texte long</label><div class="ctl">
+			<select id="overflow" data-scope="action">
+				<option value="scroll">Défilement</option>
+				<option value="shrink">Réduire la taille</option>
+			</select></div></div>
+		<div class="note">Appui : lecture/pause · maintien : stop.</div>
+	</div>
+
+	<div data-for="time">
+		<h2>Temps</h2>
+		<div class="row"><label for="mode">Affichage</label><div class="ctl">
+			<select id="mode" data-scope="action">
+				<option value="total">Écoulé / total</option>
+				<option value="remaining">Écoulé / restant</option>
+			</select></div></div>
+		<div class="note">Appui sur la touche : bascule entre les deux.</div>
+	</div>
+
+	<div data-for="rating">
+		<h2>Note</h2>
+		<div class="row"><label for="musicMode">Apple Music</label><div class="ctl">
+			<select id="musicMode" data-scope="action">
+				<option value="heart">Cœur (favori)</option>
+				<option value="stars">Étoiles</option>
+			</select></div></div>
+		<div class="row"><label for="increment">Pas (étoiles)</label><div class="ctl">
+			<select id="increment" data-scope="action">
+				<option value="1">1 étoile</option>
+				<option value="0.5">½ étoile</option>
+			</select></div></div>
+		<div class="row"><label for="showLabel">Libellé « NOTE »</label><div class="ctl"><input type="checkbox" id="showLabel" data-scope="action" data-default="true" /></div></div>
+		<div class="note">Étoiles : chaque appui ajoute un pas, retour à 0 après 5. Cœur : appui = ajoute/retire des favoris. Plex utilise toujours les étoiles.</div>
+	</div>
+
+	<div data-for="volup voldown">
+		<h2>Volume</h2>
+		<div class="row"><label for="step">Pas</label><div class="ctl">
+			<input type="range" id="step" data-scope="action" data-default="5" min="1" max="20" step="1" /><span class="val" id="stepVal"></span></div></div>
+		<div class="note" data-for="volup">Maintien : le volume monte en continu.</div>
+	</div>
+	<div data-for="voldown">
+		<div class="row"><label for="holdAction">Maintien</label><div class="ctl">
+			<select id="holdAction" data-scope="action">
+				<option value="repeat">Baisse continue</option>
+				<option value="mute">Sourdine + pause</option>
+			</select></div></div>
+		<div class="row"><label for="fade">Fondu sourdine</label><div class="ctl">
+			<input type="range" id="fade" data-scope="action" data-default="0" min="0" max="30" step="1" /><span class="val" id="fadeVal"></span></div></div>
+		<div class="note">Sourdine : coupe le son et met en pause (fondu si réglé) ; nouveau maintien : volume rétabli et lecture.</div>
+	</div>
+
+	<div data-for="playlist">
+		<h2>Playlist</h2>
+		<div class="row"><label for="source">Source</label><div class="ctl">
+			<select id="source" data-scope="action">
+				<option value="music">Apple Music</option>
+				<option value="plex">Plex</option>
+			</select></div></div>
+		<div class="row"><label></label><div class="ctl"><button id="loadPlaylists">Charger les playlists</button></div></div>
+		<div class="note" id="playlistMsg"></div>
+		<div class="row"><label for="playlistSel">Playlist</label><div class="ctl"><select id="playlistSel"></select></div></div>
+		<div class="row"><label for="shufflePl">Lecture aléatoire</label><div class="ctl"><input type="checkbox" id="shufflePl" /></div></div>
+		<div class="row"><label for="showName">Afficher le nom</label><div class="ctl"><input type="checkbox" id="showName" data-scope="action" data-default="true" /></div></div>
+		<div class="note">Plex : la playlist est lancée sur le dernier lecteur Plex utilisé (ou l'URL du lecteur ci-dessous).</div>
+	</div>
+
+	<div data-for="radio">
+		<h2>Radio</h2>
+		<div class="note" style="margin-top:6px">Appui : lance CariRadio et démarre Radio Choco (si fermée), sinon lecture/pause. Maintien : affiche la fenêtre de CariRadio.<br>Quand la radio joue, toutes les autres touches (pochette, titre, temps, volume…) la suivent.</div>
+	</div>
+
+	<!-- ============ réglages généraux (partagés) ============ -->
+	<details class="general" id="general">
+		<summary>Réglages généraux (toutes les touches)</summary>
+
+		<h2>Sources</h2>
+		<div class="row"><label for="musicEnabled">Apple Music</label><div class="ctl"><input type="checkbox" id="musicEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="row"><label for="plexEnabled">Plex</label><div class="ctl"><input type="checkbox" id="plexEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="row"><label for="radioEnabled">CariRadio</label><div class="ctl"><input type="checkbox" id="radioEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="row"><label for="priority">Si les deux jouent</label><div class="ctl">
+			<select id="priority" data-scope="global">
+				<option value="recent">La dernière lancée</option>
+				<option value="music">Apple Music d'abord</option>
+				<option value="plex">Plex d'abord</option>
+				<option value="radio">CariRadio d'abord</option>
+			</select></div></div>
+
+		<h2>Plex</h2>
+		<div class="row"><label></label><div class="ctl"><button class="primary" id="plexLogin">Se connecter à Plex…</button></div></div>
+		<div class="note" id="plexLoginMsg"></div>
+		<div class="row hidden" id="serverRow"><label for="server">Serveur</label><div class="ctl"><select id="server"></select></div></div>
+		<div class="row"><label for="plexUrl">URL serveur</label><div class="ctl"><input type="text" id="plexUrl" data-scope="global" placeholder="http://192.168.1.10:32400" spellcheck="false" /></div></div>
+		<div class="row"><label for="plexToken">Jeton</label><div class="ctl"><input type="password" id="plexToken" data-scope="global" placeholder="X-Plex-Token" spellcheck="false" /></div></div>
+		<div class="row"><label for="plexPlayer">Lecteur</label><div class="ctl"><input type="text" id="plexPlayer" data-scope="global" placeholder="Tous (ex. Plexamp, MacBook)" spellcheck="false" /></div></div>
+		<div class="row"><label for="plexUser">Utilisateur</label><div class="ctl"><input type="text" id="plexUser" data-scope="global" placeholder="Tous" spellcheck="false" /></div></div>
+		<div class="row"><label for="plexPlayerUrl">URL lecteur</label><div class="ctl"><input type="text" id="plexPlayerUrl" data-scope="global" placeholder="Auto (http://…:32500)" spellcheck="false" /></div></div>
+		<div class="note">Pilotage direct de Plexamp (port 32500). Laisser vide : détection automatique.</div>
+		<div class="row"><label></label><div class="ctl"><button id="plexTest">Tester la connexion</button></div></div>
+		<div class="note" id="plexTestMsg"></div>
+
+		<div data-for="cover">
+			<h2>Mosaïque</h2>
+			<div class="row"><label for="gapPct">Espace inter-touches</label><div class="ctl">
+				<input type="range" id="gapPct" data-scope="global" data-default="30" min="0" max="60" step="1" /><span class="val" id="gapPctVal"></span></div></div>
+			<div class="note">Compense l'espace physique entre les touches. Réglez à l'œil.</div>
+		</div>
+
+		<h2>Apple Music</h2>
+		<div class="row"><label for="itunesCountry">Pays catalogue</label><div class="ctl"><input type="text" id="itunesCountry" data-scope="global" placeholder="FR" maxlength="2" spellcheck="false" /></div></div>
+		<div class="note">Pochette des titres en streaming introuvables dans Music : catalogue iTunes.</div>
+		<div class="row"><label></label><div class="ctl"><button id="musicTest">Tester Apple Music</button></div></div>
+		<div class="note" id="musicTestMsg"></div>
+	</details>
+
+<script>
+	let ws, uuid, actionUUID, kind = "";
+	let settings = {};
+	let global = {};
+	const units = { gapPct: " %", step: "", fade: " s" };
+
+	const $ = (id) => document.getElementById(id);
+	const send = (o) => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+	const toPlugin = (payload) => send({ event: "sendToPlugin", action: actionUUID, context: uuid, payload });
+	const saveAction = () => send({ event: "setSettings", context: uuid, payload: settings });
+	const saveGlobal = () => send({ event: "setGlobalSettings", context: uuid, payload: global });
+
+	function readField(el) {
+		if (el.type === "checkbox") return el.checked;
+		if (el.type === "range") return Number(el.value);
+		return el.value.trim();
+	}
+	function showVal(el) {
+		const v = $(el.id + "Val");
+		if (v) v.textContent = el.value + (units[el.id] ?? "");
+	}
+
+	function fill() {
+		document.querySelectorAll("[data-scope]").forEach((el) => {
+			const src = el.dataset.scope === "global" ? global : settings;
+			let v = src[el.id];
+			if (v === undefined && el.dataset.default !== undefined) v = el.dataset.default === "true" ? true : el.dataset.default === "false" ? false : el.dataset.default;
+			if (el.type === "checkbox") el.checked = !!v;
+			else if (document.activeElement !== el) el.value = v ?? (el.tagName === "SELECT" ? el.options[0].value : "");
+			if (el.type === "range") showVal(el);
+		});
+		$("shufflePl").checked = !!settings.shuffle;
+		const sel = $("playlistSel");
+		if (!sel.options.length && settings.playlistId) {
+			const o = document.createElement("option");
+			o.value = settings.playlistId; o.textContent = settings.playlistTitle || settings.playlistId;
+			sel.appendChild(o);
+		}
+		const servers = global.plexServers || [];
+		$("serverRow").classList.toggle("hidden", servers.length < 2);
+		const ss = $("server");
+		ss.innerHTML = "";
+		servers.forEach((s, i) => {
+			const o = document.createElement("option");
+			o.value = String(i);
+			o.textContent = `${s.name} — ${s.local ? "local" : "distant"}`;
+			if (s.url === global.plexUrl) o.selected = true;
+			ss.appendChild(o);
+		});
+	}
+
+	const timers = {};
+	document.querySelectorAll("[data-scope]").forEach((el) => {
+		const commit = () => {
+			const target = el.dataset.scope === "global" ? global : settings;
+			target[el.id] = readField(el);
+			if (el.id === "itunesCountry") target[el.id] = String(target[el.id]).toUpperCase();
+			el.dataset.scope === "global" ? saveGlobal() : saveAction();
+		};
+		el.addEventListener("change", commit);
+		if (el.tagName === "INPUT" && el.type !== "checkbox") {
+			el.addEventListener("input", () => {
+				if (el.type === "range") showVal(el);
+				clearTimeout(timers[el.id]);
+				timers[el.id] = setTimeout(commit, 400);
+			});
+		}
+	});
+
+	$("server").addEventListener("change", () => {
+		const s = (global.plexServers || [])[Number($("server").value)];
+		if (!s) return;
+		global.plexUrl = s.url;
+		global.plexToken = s.token;
+		saveGlobal();
+		fill();
+	});
+	$("source").addEventListener("change", () => {
+		$("playlistSel").innerHTML = "";
+		delete settings.playlistId; delete settings.playlistTitle;
+		saveAction();
+		setNote("playlistMsg", "");
+	});
+	$("loadPlaylists").addEventListener("click", () => {
+		setNote("playlistMsg", "Chargement…");
+		toPlugin({ event: "listPlaylists", source: $("source").value });
+	});
+	$("playlistSel").addEventListener("change", () => {
+		const o = $("playlistSel").selectedOptions[0];
+		if (!o) return;
+		settings.playlistId = o.value;
+		settings.playlistTitle = o.textContent;
+		saveAction();
+	});
+	$("shufflePl").addEventListener("change", () => { settings.shuffle = $("shufflePl").checked; saveAction(); });
+	$("plexLogin").addEventListener("click", () => {
+		$("plexLogin").disabled = true;
+		setNote("plexLoginMsg", "Ouverture de plex.tv…");
+		toPlugin({ event: "plexLogin" });
+	});
+	$("plexTest").addEventListener("click", () => { setNote("plexTestMsg", "Test en cours…"); toPlugin({ event: "plexTest" }); });
+	$("musicTest").addEventListener("click", () => {
+		setNote("musicTestMsg", "Test en cours… (accepte la demande d'autorisation macOS si elle apparaît)");
+		toPlugin({ event: "musicTest" });
+	});
+
+	function setNote(id, text, cls) {
+		const n = $(id);
+		n.textContent = text || "";
+		n.className = "note" + (cls ? " " + cls : "");
+	}
+
+	function showSections() {
+		document.querySelectorAll("[data-for]").forEach((el) => el.classList.toggle("on", el.dataset.for.split(" ").includes(kind)));
+		if (kind === "cover") $("general").open = true;
+	}
+
+	// Point d'entrée appelé par Stream Deck
+	function connectElgatoStreamDeckSocket(port, inUUID, registerEvent, info, actionInfo) {
+		uuid = inUUID;
+		try {
+			const a = JSON.parse(actionInfo);
+			actionUUID = a.action;
+			kind = String(a.action).split(".").pop();
+			settings = (a.payload && a.payload.settings) || {};
+		} catch (e) {}
+		showSections();
+		ws = new WebSocket("ws://127.0.0.1:" + port);
+		ws.onopen = () => {
+			send({ event: registerEvent, uuid });
+			send({ event: "getGlobalSettings", context: uuid });
+			toPlugin({ event: "status" });
+			fill();
+		};
+		ws.onmessage = (m) => {
+			const msg = JSON.parse(m.data);
+			if (msg.event === "didReceiveGlobalSettings") { global = msg.payload.settings || {}; fill(); }
+			else if (msg.event === "didReceiveSettings") { settings = msg.payload.settings || {}; fill(); }
+			else if (msg.event === "sendToPropertyInspector") {
+				const p = msg.payload || {};
+				if (p.event === "status") $("status").textContent = p.text;
+				else if (p.event === "global") { global = p.settings || {}; fill(); }
+				else if (p.event === "plexTest") setNote("plexTestMsg", p.message, p.ok ? "ok" : "err");
+				else if (p.event === "musicTest") setNote("musicTestMsg", p.message, p.ok ? "ok" : "err");
+				else if (p.event === "plexLogin") {
+					setNote("plexLoginMsg", p.message, p.state === "done" ? "ok" : p.state === "error" ? "err" : "");
+					if (p.state === "done" || p.state === "error") $("plexLogin").disabled = false;
+				} else if (p.event === "playlists") {
+					const sel = $("playlistSel");
+					sel.innerHTML = "";
+					const ph = document.createElement("option");
+					ph.value = ""; ph.textContent = "— choisir —"; ph.disabled = true; ph.selected = !settings.playlistId;
+					sel.appendChild(ph);
+					(p.items || []).forEach((it) => {
+						const o = document.createElement("option");
+						o.value = it.id; o.textContent = it.title;
+						if (it.id === settings.playlistId) o.selected = true;
+						sel.appendChild(o);
+					});
+					setNote("playlistMsg", p.message, (p.items || []).length ? "ok" : "err");
+				}
+			}
+		};
+	}
+</script>
+</body>
+</html>
