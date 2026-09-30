@@ -143,7 +143,7 @@
 			<select id="seekStep" data-scope="action">
 				<option value="10">10 s</option><option value="5">5 s</option><option value="15">15 s</option><option value="30">30 s</option>
 			</select></div></div>
-		<div class="note">Appui : piste suivante/précédente (précédent revient au début après 3 s). Maintien : avance/recule en continu.</div>
+		<div class="note">Appui : piste suivante/précédente (précédent revient au début après 3 s). Maintien : avance/recule en continu.<br>CariRadio : favori suivant/précédent (menu Stations de l'app).</div>
 	</div>
 
 	<div data-for="shuffle repeat info">
@@ -190,7 +190,7 @@
 				<option value="0.5">½ étoile</option>
 			</select></div></div>
 		<div class="row"><label for="showLabel">Libellé « NOTE »</label><div class="ctl"><input type="checkbox" id="showLabel" data-scope="action" data-default="true" /></div></div>
-		<div class="note">Étoiles : chaque appui ajoute un pas, retour à 0 après 5. Cœur : appui = ajoute/retire des favoris. Plex utilise toujours les étoiles.</div>
+		<div class="note">Étoiles : chaque appui ajoute un pas, retour à 0 après 5. Cœur : appui = ajoute/retire des favoris. Plex utilise toujours les étoiles.<br>CariRadio : cœur « J'aime » (liste des morceaux aimés de l'app).</div>
 	</div>
 
 	<div data-for="volup voldown">
@@ -216,18 +216,31 @@
 			<select id="source" data-scope="action">
 				<option value="music">Apple Music</option>
 				<option value="plex">Plex</option>
+				<option value="spotify">Spotify</option>
 			</select></div></div>
-		<div class="row"><label></label><div class="ctl"><button id="loadPlaylists">Charger les playlists</button></div></div>
-		<div class="note" id="playlistMsg"></div>
-		<div class="row"><label for="playlistSel">Playlist</label><div class="ctl"><select id="playlistSel"></select></div></div>
+		<div class="row pl-list"><label></label><div class="ctl"><button id="loadPlaylists">Charger les playlists</button></div></div>
+		<div class="note pl-list" id="playlistMsg"></div>
+		<div class="row pl-list"><label for="playlistSel">Playlist</label><div class="ctl"><select id="playlistSel"></select></div></div>
+		<div class="row pl-spotify"><label for="spotifyUri">Lien Spotify</label><div class="ctl"><input type="text" id="spotifyUri" placeholder="https://open.spotify.com/playlist/…" spellcheck="false" /></div></div>
+		<div class="row pl-spotify"><label for="spotifyName">Nom affiché</label><div class="ctl"><input type="text" id="spotifyName" placeholder="Ma playlist" spellcheck="false" /></div></div>
+		<div class="note pl-spotify">Dans Spotify : ⋯ › Partager › Copier le lien (playlist, album ou artiste).</div>
 		<div class="row"><label for="shufflePl">Lecture aléatoire</label><div class="ctl"><input type="checkbox" id="shufflePl" /></div></div>
 		<div class="row"><label for="showName">Afficher le nom</label><div class="ctl"><input type="checkbox" id="showName" data-scope="action" data-default="true" /></div></div>
-		<div class="note">Plex : la playlist est lancée sur le dernier lecteur Plex utilisé (ou l'URL du lecteur ci-dessous).</div>
+		<div class="note pl-list">Plex : la playlist est lancée sur le dernier lecteur Plex utilisé (ou l'URL du lecteur ci-dessous).</div>
 	</div>
 
 	<div data-for="radio">
 		<h2>Radio</h2>
-		<div class="note" style="margin-top:6px">Appui : lance CariRadio et démarre Radio Choco (si fermée), sinon lecture/pause. Maintien : affiche la fenêtre de CariRadio.<br>Quand la radio joue, toutes les autres touches (pochette, titre, temps, volume…) la suivent.</div>
+		<div class="note" style="margin-top:6px">Appui : lance CariRadio et démarre la dernière station écoutée (si fermée), sinon lecture/pause. Maintien : affiche la fenêtre de CariRadio.<br>Quand la radio joue, toutes les autres touches (pochette, titre, temps, volume…) la suivent ; ⏮ ⏭ changent de station favorite.</div>
+	</div>
+
+	<div data-for="station">
+		<h2>Station</h2>
+		<div class="row"><label></label><div class="ctl"><button id="loadStations">Charger les favoris CariRadio</button></div></div>
+		<div class="note" id="stationMsg"></div>
+		<div class="row"><label for="stationSel">Station</label><div class="ctl"><select id="stationSel"></select></div></div>
+		<div class="row"><label for="stationShowName">Afficher le nom</label><div class="ctl"><input type="checkbox" id="stationShowName" data-scope="action" data-default="true" /></div></div>
+		<div class="note">Appui : écoute la station (lance CariRadio si besoin) ; si elle joue déjà, lecture/pause. Maintien : affiche CariRadio.<br>Les favoris se gèrent dans CariRadio (étoile, glisser-déposer).</div>
 	</div>
 
 	<!-- ============ réglages généraux (partagés) ============ -->
@@ -237,13 +250,20 @@
 		<h2>Sources</h2>
 		<div class="row"><label for="musicEnabled">Apple Music</label><div class="ctl"><input type="checkbox" id="musicEnabled" data-scope="global" data-default="true" /></div></div>
 		<div class="row"><label for="plexEnabled">Plex</label><div class="ctl"><input type="checkbox" id="plexEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="row"><label for="spotifyEnabled">Spotify</label><div class="ctl"><input type="checkbox" id="spotifyEnabled" data-scope="global" data-default="true" /></div></div>
 		<div class="row"><label for="radioEnabled">CariRadio</label><div class="ctl"><input type="checkbox" id="radioEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="row"><label for="nowPlayingEnabled">Autres apps</label><div class="ctl"><input type="checkbox" id="nowPlayingEnabled" data-scope="global" data-default="true" /></div></div>
+		<div class="note">« Autres apps » = tout ce qui s'affiche dans « À l'écoute » de macOS : Deezer, TIDAL, Qobuz (lecteur web), YouTube Music, navigateurs… Volume : celui du Mac.</div>
+		<div class="row"><label></label><div class="ctl"><button id="npTest">Tester « À l'écoute »</button></div></div>
+		<div class="note" id="npTestMsg"></div>
 		<div class="row"><label for="priority">Si les deux jouent</label><div class="ctl">
 			<select id="priority" data-scope="global">
 				<option value="recent">La dernière lancée</option>
 				<option value="music">Apple Music d'abord</option>
 				<option value="plex">Plex d'abord</option>
+				<option value="spotify">Spotify d'abord</option>
 				<option value="radio">CariRadio d'abord</option>
+				<option value="nowplaying">Autres apps d'abord</option>
 			</select></div></div>
 
 		<h2>Plex</h2>
@@ -305,11 +325,18 @@
 			if (el.type === "range") showVal(el);
 		});
 		$("shufflePl").checked = !!settings.shuffle;
+		showPlaylistRows();
 		const sel = $("playlistSel");
 		if (!sel.options.length && settings.playlistId) {
 			const o = document.createElement("option");
 			o.value = settings.playlistId; o.textContent = settings.playlistTitle || settings.playlistId;
 			sel.appendChild(o);
+		}
+		const ssel = $("stationSel");
+		if (!ssel.options.length && settings.stationId) {
+			const o = document.createElement("option");
+			o.value = settings.stationId; o.textContent = settings.stationName || settings.stationId;
+			ssel.appendChild(o);
 		}
 		const servers = global.plexServers || [];
 		$("serverRow").classList.toggle("hidden", servers.length < 2);
@@ -350,7 +377,28 @@
 		saveGlobal();
 		fill();
 	});
+	function showPlaylistRows() {
+		const sp = $("source").value === "spotify";
+		document.querySelectorAll(".pl-list").forEach((el) => el.classList.toggle("hidden", sp));
+		document.querySelectorAll(".pl-spotify").forEach((el) => el.classList.toggle("hidden", !sp));
+		if (sp) {
+			if (document.activeElement !== $("spotifyUri")) $("spotifyUri").value = settings.source === "spotify" ? settings.playlistId || "" : "";
+			if (document.activeElement !== $("spotifyName")) $("spotifyName").value = settings.source === "spotify" ? settings.playlistTitle || "" : "";
+		}
+	}
+	const saveSpotify = () => {
+		settings.playlistId = $("spotifyUri").value.trim();
+		settings.playlistTitle = $("spotifyName").value.trim() || "Spotify";
+		saveAction();
+	};
+	["spotifyUri", "spotifyName"].forEach((id) => {
+		$(id).addEventListener("change", saveSpotify);
+		$(id).addEventListener("input", () => { clearTimeout(timers[id]); timers[id] = setTimeout(saveSpotify, 500); });
+	});
+	$("npTest").addEventListener("click", () => { setNote("npTestMsg", "Test en cours…"); toPlugin({ event: "npTest" }); });
+
 	$("source").addEventListener("change", () => {
+		showPlaylistRows();
 		$("playlistSel").innerHTML = "";
 		delete settings.playlistId; delete settings.playlistTitle;
 		saveAction();
@@ -365,6 +413,18 @@
 		if (!o) return;
 		settings.playlistId = o.value;
 		settings.playlistTitle = o.textContent;
+		saveAction();
+	});
+	$("loadStations").addEventListener("click", () => {
+		setNote("stationMsg", "Chargement…");
+		toPlugin({ event: "listStations" });
+	});
+	$("stationSel").addEventListener("change", () => {
+		const o = $("stationSel").selectedOptions[0];
+		if (!o) return;
+		settings.stationId = o.value;
+		settings.stationName = o.textContent;
+		settings.stationFavicon = o.dataset.favicon || "";
 		saveAction();
 	});
 	$("shufflePl").addEventListener("change", () => { settings.shuffle = $("shufflePl").checked; saveAction(); });
@@ -417,6 +477,7 @@
 				else if (p.event === "global") { global = p.settings || {}; fill(); }
 				else if (p.event === "plexTest") setNote("plexTestMsg", p.message, p.ok ? "ok" : "err");
 				else if (p.event === "musicTest") setNote("musicTestMsg", p.message, p.ok ? "ok" : "err");
+				else if (p.event === "npTest") setNote("npTestMsg", p.message, p.ok ? "ok" : "err");
 				else if (p.event === "plexLogin") {
 					setNote("plexLoginMsg", p.message, p.state === "done" ? "ok" : p.state === "error" ? "err" : "");
 					if (p.state === "done" || p.state === "error") $("plexLogin").disabled = false;
@@ -433,6 +494,19 @@
 						sel.appendChild(o);
 					});
 					setNote("playlistMsg", p.message, (p.items || []).length ? "ok" : "err");
+				} else if (p.event === "stations") {
+					const sel = $("stationSel");
+					sel.innerHTML = "";
+					const ph = document.createElement("option");
+					ph.value = ""; ph.textContent = "— choisir —"; ph.disabled = true; ph.selected = !settings.stationId;
+					sel.appendChild(ph);
+					(p.items || []).forEach((it) => {
+						const o = document.createElement("option");
+						o.value = it.id; o.textContent = it.name; o.dataset.favicon = it.favicon || "";
+						if (it.id === settings.stationId) o.selected = true;
+						sel.appendChild(o);
+					});
+					setNote("stationMsg", p.message, (p.items || []).length ? "ok" : "err");
 				}
 			}
 		};

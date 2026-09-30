@@ -1,9 +1,9 @@
 {
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"Name": "CariMusicDeck",
-	"Version": "1.3.1.0",
+	"Version": "1.5.0.0",
 	"Author": "Caribou Labs",
-	"Description": "Pochette, titre, temps, volume et commandes de lecture pour Apple Music, Plex (Plexamp) et CariRadio — suit automatiquement la source en cours.",
+	"Description": "Pochette, titre, temps, volume et commandes de lecture pour Apple Music, Spotify, Plex, Deezer, TIDAL, Qobuz, CariRadio et toute app du « À l'écoute » de macOS — suit automatiquement la source en cours.",
 	"Category": "CariMusicDeck",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"Icon": "imgs/plugin/marketplace",
@@ -268,7 +268,7 @@
 			"Name": "Playlist",
 			"UUID": "fr.cariboulabs.caricover.playlist",
 			"Icon": "imgs/actions/playlist/icon",
-			"Tooltip": "Lance une playlist Plex ou Apple Music.",
+			"Tooltip": "Lance une playlist Apple Music, Plex ou Spotify.",
 			"PropertyInspectorPath": "ui/pi.html",
 			"Controllers": [
 				"Keypad"
@@ -288,7 +288,7 @@
 			"Name": "Radio",
 			"UUID": "fr.cariboulabs.caricover.radio",
 			"Icon": "imgs/actions/radio/icon",
-			"Tooltip": "CariRadio (Radio Choco) : appui = lance/lecture/pause, maintien = affiche l'app.",
+			"Tooltip": "CariRadio : appui = lance/lecture/pause, maintien = affiche l'app.",
 			"PropertyInspectorPath": "ui/pi.html",
 			"Controllers": [
 				"Keypad"
@@ -301,6 +301,26 @@
 					"TitleAlignment": "bottom",
 					"FontSize": 10,
 					"ShowTitle": false
+				}
+			]
+		},
+		{
+			"Name": "Station CariRadio",
+			"UUID": "fr.cariboulabs.caricover.station",
+			"Icon": "imgs/actions/station/icon",
+			"Tooltip": "Une station favorite de CariRadio (logo) : appui = écouter, maintien = afficher l'app.",
+			"PropertyInspectorPath": "ui/pi.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"SupportedInMultiActions": true,
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/actions/station/key",
+					"TitleAlignment": "bottom",
+					"FontSize": 10,
+					"ShowTitle": true
 				}
 			]
 		}
