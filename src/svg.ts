@@ -222,7 +222,7 @@ export const idleKey = (label = "—") => svgUri(line(label, 84, 30, DIM));
 
 // ---------------------------------------------------------------- favori (Apple Music)
 
-export function heartKey(fav: boolean | null, accent: string, showLabel: boolean): string {
+export function heartKey(fav: boolean | null, accent: string, showLabel: boolean, label = "FAVORI"): string {
 	const cy = showLabel ? 84 : 72;
 	const c = fav === null ? DIM : fav ? accent : "#636366";
 	// cœur 72×64 centré
@@ -230,7 +230,7 @@ export function heartKey(fav: boolean | null, accent: string, showLabel: boolean
 	const shape = fav
 		? `<path d="${d}" fill="${c}" stroke="${c}" stroke-width="4" stroke-linejoin="round"/>`
 		: `<path d="${d}" fill="none" stroke="${c}" stroke-width="7" stroke-linejoin="round"/>`;
-	return svgUri((showLabel ? line("FAVORI", 30, 18, GRAY) : "") + `<g transform="translate(72 ${cy}) scale(1.3) translate(-72 ${-cy})">${shape}</g>`);
+	return svgUri((showLabel ? line(label, 30, 18, GRAY) : "") + `<g transform="translate(72 ${cy}) scale(1.3) translate(-72 ${-cy})">${shape}</g>`);
 }
 
 // ---------------------------------------------------------------- texte défilant
@@ -272,4 +272,23 @@ export function radioKey(state: "off" | "idle" | "playing" | "paused", accent: s
 	const label = state === "playing" ? "EN DIRECT" : state === "paused" ? "EN PAUSE" : state === "idle" ? "PRÊT" : name;
 	void accent;
 	return svgUri(arcs + mast + line(label, 124, 20, live ? "#FF453A" : state === "off" ? GRAY : WHITE));
+}
+
+// ---------------------------------------------------------------- station favorite (CariRadio)
+
+/** Touche Station sans logo : initiales dans une pastille + nom. */
+export function stationKey(name: string, accent: string, current: boolean, playing: boolean): string {
+	const initials =
+		name
+			.replace(/[^\p{L}\p{N} ]/gu, "")
+			.split(/\s+/)
+			.filter(Boolean)
+			.slice(0, 2)
+			.map((w) => w[0])
+			.join("")
+			.toUpperCase() || "♪";
+	const ring = playing ? "#FF453A" : current ? accent || WHITE : GRAY;
+	const disc = `<circle cx="72" cy="56" r="34" fill="none" stroke="${ring}" stroke-width="5"/>` + line(initials, 70, 34, playing ? WHITE : current ? WHITE : GRAY, "bold", 56);
+	const f = fitText(name || "Station", 132, 34, 1, 22, 12);
+	return svgUri(disc + textBlock(f, 118, playing ? WHITE : GRAY));
 }

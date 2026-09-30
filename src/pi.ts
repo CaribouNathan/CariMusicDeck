@@ -4,6 +4,8 @@ import type { JsonObject, JsonValue } from "@elgato/utils";
 import { randomUUID } from "node:crypto";
 import type { GlobalSettings, NowPlaying, SourceId } from "./engine.js";
 import { readMusic, readMusicArtworkLocal, searchItunesArtwork } from "./music.js";
+import { backendLabel } from "./nowplaying.js";
+import { readStations } from "./radio.js";
 import { createPin, discoverServers, testPlex, waitForPin } from "./plex.js";
 
 const reply = (p: Record<string, JsonValue>) => streamDeck.ui.sendToPropertyInspector(p);
@@ -51,6 +53,23 @@ export async function handlePiMessage(engine: NowPlaying, payload: JsonValue): P
 			}
 			return;
 
+		case "npTest": {
+			const st = engine.np.state;
+			const b = engine.np.backend;
+			if (!b) return void reply({ event: "npTest", ok: false, message: "Moteur absent : lance build.command (adaptateur embarqué) ou « brew install media-control »." });
+			if (engine.global.nowPlayingEnabled === false) return void reply({ event: "npTest", ok: false, message: "Source désactivée ci-dessus." });
+			await reply({
+				event: "npTest",
+				ok: !engine.np.error,
+				message: engine.np.error
+					? `Moteur : ${backendLabel(b)} — erreur : ${engine.np.error}`
+					: st
+						? `Moteur : ${backendLabel(b)} — ${st.playing ? "▶︎" : "❚❚"} ${st.title} · ${st.artist} (${st.bundleId})`
+						: `Moteur : ${backendLabel(b)} — rien en lecture pour l'instant`,
+			});
+			return;
+		}
+
 		case "plexTest": {
 			const cfg = engine.plexConfig;
 			if (!cfg) return void reply({ event: "plexTest", ok: false, message: "Renseigne l'URL et le jeton (ou connecte-toi)." });
@@ -91,8 +110,20 @@ export async function handlePiMessage(engine: NowPlaying, payload: JsonValue): P
 			}
 			return;
 
+		case "listStations": {
+			const r = await readStations();
+			if (!r) return void reply({ event: "stations", items: [], message: "CariRadio (1.1 ou plus récent) doit être ouverte." });
+			await reply({
+				event: "stations",
+				items: r.stations.map((s) => ({ id: s.id, name: s.name, favicon: s.favicon })) as unknown as JsonValue,
+				message: r.stations.length ? `${r.stations.length} favori(s)` : "Aucun favori : ajoute des stations avec l'étoile dans CariRadio.",
+			});
+			return;
+		}
+
 		case "listPlaylists": {
 			const source = (msg.source === "plex" ? "plex" : "music") as SourceId;
+			if (msg.source === "spotify") return void reply({ event: "playlists", source: "spotify", items: [], message: "Spotify : colle le lien de la playlist ci-dessous." });
 			try {
 				const items = await engine.listPlaylists(source);
 				await reply({ event: "playlists", source, items: items as unknown as JsonValue, message: `${items.length} playlist(s)` });

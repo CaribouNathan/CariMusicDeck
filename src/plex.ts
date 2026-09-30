@@ -48,7 +48,7 @@ export interface PlayerTimeline {
 }
 
 const PRODUCT = "CariMusicDeck";
-export const PLEX_VERSION = "1.3.1";
+export const PLEX_VERSION = "1.4.0";
 
 export function plexHeaders(clientId: string, token?: string): Record<string, string> {
 	const h: Record<string, string> = {

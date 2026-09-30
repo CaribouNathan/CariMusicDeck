@@ -3,6 +3,7 @@ import type { JsonObject } from "@elgato/utils";
 import type { NowPlaying, SourceId } from "./engine.js";
 import { LiveAction, type Key } from "./base.js";
 import { renderSingle } from "./render.js";
+import type { RadioStation } from "./radio.js";
 import {
 	DIM,
 	WHITE,
@@ -16,6 +17,7 @@ import {
 	playlistKey,
 	playPauseKey,
 	radioKey,
+	stationKey,
 	ratingKey,
 	repeatKey,
 	shuffleKey,
@@ -60,13 +62,16 @@ export class SkipAction extends LiveAction<SkipSettings> {
 	protected draw(_s: SkipSettings, id: string): string {
 		const c = this.engine.current;
 		if (this.seeking.has(id)) return skipKey(this.dir, this.engine.accent, fmtTime(this.engine.positionMs()));
-		return skipKey(this.dir, c && c.src !== "radio" ? WHITE : DIM); // radio en direct : pas de piste suivante
+		// radio : ⏮ ⏭ passent au favori précédent / suivant de CariRadio
+		if (c?.src === "radio") return skipKey(this.dir, WHITE, "STATION");
+		return skipKey(this.dir, c ? WHITE : DIM);
 	}
 	protected override onTap() {
 		return this.dir === "next" ? this.engine.next() : this.engine.previous();
 	}
 	protected override async onHold(a: Key<SkipSettings>, s: SkipSettings) {
 		if (!this.engine.current) return false;
+		if (this.engine.current.src === "radio") return this.onTap(); // direct : pas de recherche, on change de station
 		const step = (Number(s.seekStep) || 10) * 1000 * (this.dir === "next" ? 1 : -1);
 		void this.engine.seekBy(step);
 		this.seeking.set(
@@ -188,11 +193,12 @@ export class RatingAction extends LiveAction<RatingSettings> {
 		super(e, `${NS}.rating`);
 	}
 	private heart(s: RatingSettings): boolean {
-		return this.engine.current?.src === "music" && s.musicMode !== "stars";
+		const src = this.engine.current?.src;
+		return src === "radio" || (src === "music" && s.musicMode !== "stars"); // CariRadio : « J'aime »
 	}
 	protected draw(s: RatingSettings): string {
 		const c = this.engine.current;
-		if (this.heart(s)) return heartKey(c ? c.favorite : null, this.engine.accent, s.showLabel !== false);
+		if (this.heart(s)) return heartKey(c ? c.favorite : null, this.engine.accent, s.showLabel !== false, c?.src === "radio" ? "J'AIME" : "FAVORI");
 		return ratingKey(c ? c.rating : null, this.engine.accent, s.showLabel !== false);
 	}
 	protected override async onTap(_a: Key<RatingSettings>, s: RatingSettings) {
@@ -270,6 +276,7 @@ export class PlaylistAction extends LiveAction<PlaylistSettings> {
 		if (!s.playlistId) return playlistKey("Choisir une playlist");
 		const k = `${s.source}:${s.playlistId}`;
 		const retry = !this.art.get(k) && Date.now() - (this.artTried.get(k) ?? 0) > 3_000;
+		if (s.source === "spotify") return playlistKey(name || "Spotify");
 		if (!this.art.has(k) || retry) {
 			this.art.set(k, this.art.get(k) ?? null);
 			this.artTried.set(k, Date.now());
@@ -315,6 +322,57 @@ export class RadioAction extends LiveAction<JsonObject> {
 		return this.engine.radioToggle();
 	}
 	/** Maintien : affiche la fenêtre CariRadio. */
+	protected override onHold() {
+		return this.engine.radioShow();
+	}
+}
+
+// ------------------------------------------------------------ Station (favori de CariRadio)
+
+type StationSettings = JsonObject & { stationId?: string; stationName?: string; stationFavicon?: string; stationShowName?: boolean };
+
+/** Une station favorite de CariRadio sur une touche : logo + nom ; appui = écouter, maintien = afficher CariRadio. */
+export class StationAction extends LiveAction<StationSettings> {
+	private art = new Map<string, string | null>();
+	constructor(e: NowPlaying) {
+		super(e, `${NS}.station`, false, true);
+	}
+	/** Fiche à jour depuis les favoris de CariRadio (nom et logo peuvent changer). */
+	private live(s: StationSettings): Pick<RadioStation, "name" | "favicon"> {
+		const f = this.engine.radio?.favorites?.find((x) => x.id === s.stationId);
+		return { name: f?.name ?? s.stationName ?? "", favicon: f?.favicon ?? s.stationFavicon ?? "" };
+	}
+	private isOn(s: StationSettings): { current: boolean; playing: boolean } {
+		const r = this.engine.radio;
+		const current = !!r && !!s.stationId && r.station.id === s.stationId;
+		return { current, playing: current && (r!.status === "playing" || r!.status === "loading") };
+	}
+	protected async draw(s: StationSettings): Promise<string> {
+		if (!s.stationId) return stationKey("Choisir une station", "", false, false);
+		const { name, favicon } = this.live(s);
+		const on = this.isOn(s);
+		const k = `${favicon}|${on.playing ? 1 : 0}`;
+		if (favicon && !this.art.has(k)) {
+			this.art.set(k, null);
+			void this.engine.stationLogo(favicon).then(async (img) => {
+				// station écoutée : logo plein ; sinon légèrement atténué
+				this.art.set(k, img ? await renderSingle(img, !on.playing) : null);
+				void this.refresh();
+			});
+		}
+		return this.art.get(k) ?? stationKey(name, this.engine.accent, on.current, on.playing);
+	}
+	protected override title(s: StationSettings): string | undefined {
+		if (!s.stationId || s.stationShowName === false) return undefined;
+		const { name, favicon } = this.live(s);
+		const on = this.isOn(s);
+		return this.art.get(`${favicon}|${on.playing ? 1 : 0}`) ? `${on.playing ? "● " : ""}${name}` : undefined; // sans logo, le nom est dessiné
+	}
+	protected override onTap(_a: Key<StationSettings>, s: StationSettings) {
+		// déjà en cours : l'appui met en pause / relance, comme la touche Radio
+		if (this.isOn(s).current) return this.engine.radioToggle();
+		return this.engine.radioStation(s.stationId ?? "");
+	}
 	protected override onHold() {
 		return this.engine.radioShow();
 	}

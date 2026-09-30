@@ -11,6 +11,7 @@ import {
 	RepeatAction,
 	ShuffleAction,
 	SkipAction,
+	StationAction,
 	TimeAction,
 	TitleAction,
 	VolumeAction,
@@ -38,6 +39,7 @@ const actions = [
 	new VolumeAction(engine, "down"),
 	new PlaylistAction(engine),
 	new RadioAction(engine),
+	new StationAction(engine),
 ];
 for (const a of actions) {
 	all.push(a);

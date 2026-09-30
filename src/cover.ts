@@ -151,7 +151,7 @@ export class CoverAction extends SingletonAction<CoverSettings> {
 			case "album":
 				return c?.album ?? "";
 			case "source":
-				return c ? (c.src === "music" ? "Music" : c.src === "radio" ? "Radio" : "Plex") : "";
+				return c ? (c.src === "music" ? "Music" : c.src === "nowplaying" ? (c.player ?? "") : c.src === "radio" ? "Radio" : c.src === "spotify" ? "Spotify" : "Plex") : "";
 			default:
 				return undefined;
 		}

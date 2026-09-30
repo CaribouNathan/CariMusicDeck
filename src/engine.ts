@@ -20,12 +20,25 @@ import {
 	type PlexSession,
 	type QueueInfo,
 } from "./plex.js";
+import { appName, getSystemVolume, NowPlayingStream, setSystemVolume, type NPState } from "./nowplaying.js";
 import { launchRadio, radioCmd, readRadio, type RadioState } from "./radio.js";
+import { readSpotify, spotify, type SpotifySnapshot } from "./spotify.js";
 import { accentFrom, decode } from "./render.js";
 
 export type Img = Awaited<ReturnType<typeof decode>>;
-export type SourceId = "music" | "plex" | "radio";
-const SOURCES: SourceId[] = ["music", "plex", "radio"];
+export type SourceId = "music" | "spotify" | "plex" | "radio" | "nowplaying";
+const SOURCES: SourceId[] = ["music", "spotify", "plex", "radio", "nowplaying"];
+
+/** Apps déjà gérées par une source dédiée : ignorées par la source « À l'écoute » (pas de doublon). */
+const NP_EXCLUDED = new Set(["com.apple.Music", "com.apple.iTunes", "com.spotify.client", "tv.plex.plexamp", "fr.cariboulabs.cariradio"]);
+
+export const SOURCE_LABEL: Record<SourceId, string> = {
+	music: "Apple Music",
+	spotify: "Spotify",
+	plex: "Plex",
+	radio: "CariRadio",
+	nowplaying: "À l'écoute",
+};
 export type Repeat = "off" | "one" | "all";
 
 export type GlobalSettings = {
@@ -33,6 +46,8 @@ export type GlobalSettings = {
 	musicEnabled?: boolean;
 	plexEnabled?: boolean;
 	radioEnabled?: boolean;
+	spotifyEnabled?: boolean;
+	nowPlayingEnabled?: boolean;
 	plexUrl?: string;
 	plexToken?: string;
 	plexUserToken?: string;
@@ -40,7 +55,7 @@ export type GlobalSettings = {
 	plexUser?: string;
 	plexPlayerUrl?: string;
 	plexServers?: PlexServerChoice[];
-	priority?: "recent" | "music" | "plex" | "radio";
+	priority?: "recent" | SourceId;
 	gapPct?: number;
 	coverProgress?: boolean;
 	itunesCountry?: string;
@@ -93,26 +108,42 @@ export class NowPlaying {
 	private plex: PlexSession | null = null;
 	radio: RadioState | null = null;
 	private radioAt = 0;
+	private spot: SpotifySnapshot | null = null;
+	private spotAt = 0;
+	spotifyError = "";
+	np: NowPlayingStream;
+	private npName = "";
+	private sysVolume: number | null = null;
+	private started = false;
 	private plexPos = { offset: -1, at: 0 };
 	private timeline: { base: string; data: PlayerTimeline; at: number } | null = null;
 	private players = new Map<string, { base: string | null; at: number }>();
 	private lastPlexPlayer: { id: string; base: string | null } | null = null;
 	private queue = new Map<string, QueueInfo | null>();
 	private leafCounts = new Map<string, number>();
-	private lastStart: Record<SourceId, number> = { music: 0, plex: 0, radio: 0 };
-	private prevId: Record<SourceId, string> = { music: "", plex: "", radio: "" };
+	private lastStart: Record<SourceId, number> = { music: 0, spotify: 0, plex: 0, radio: 0, nowplaying: 0 };
+	private prevId: Record<SourceId, string> = { music: "", spotify: "", plex: "", radio: "", nowplaying: "" };
 	private art = new Map<string, Img | null>();
 	private accents = new Map<string, string>();
 	private loading = new Set<string>();
 	private listeners = new Set<() => void>();
 	private tickers = new Set<() => void>();
-	private busy = { music: false, plex: false, timeline: false, radio: false };
+	private busy = { music: false, plex: false, timeline: false, radio: false, spotify: false, sysvol: false };
 	private lastKey = "";
 	private ov: { volume?: Override<number>; shuffle?: Override<boolean>; repeat?: Override<Repeat>; rating?: Override<number>; favorite?: Override<boolean>; state?: Override<"playing" | "paused">; pos?: Override<number> } = {};
 	private preMute: number | null = null;
 	private fadeTimer: NodeJS.Timeout | null = null;
 
-	constructor(private isActive: () => boolean) {}
+	constructor(private isActive: () => boolean) {
+		this.np = new NowPlayingStream(
+			() => {
+				const b = this.np.state?.bundleId ?? "";
+				if (b && !this.npName.startsWith(`${b}|`)) void appName(b).then((n) => ((this.npName = `${b}|${n}`), this.recompute(true)));
+				this.recompute();
+			},
+			(m) => this.log(m),
+		);
+	}
 
 	onChange(fn: () => void): void {
 		this.listeners.add(fn);
@@ -134,17 +165,29 @@ export class NowPlaying {
 		setInterval(() => void this.pollPlex(), 2000);
 		setInterval(() => void this.pollTimeline(), 1000);
 		setInterval(() => void this.pollRadio(), 1000);
+		setInterval(() => void this.pollSpotify(), 1000);
+		setInterval(() => void this.pollSystemVolume(), 2000);
 		setInterval(() => {
 			if (this.isActive()) for (const fn of this.tickers) fn();
 		}, 250);
 		void this.pollMusic();
 		void this.pollPlex();
 		void this.pollRadio();
+		void this.pollSpotify();
+		this.started = true;
+		this.syncNowPlaying();
+	}
+
+	/** Démarre / arrête le flux « À l'écoute » selon le réglage. */
+	private syncNowPlaying(): void {
+		if (this.global.nowPlayingEnabled === false) this.np.stop();
+		else this.np.start();
 	}
 
 	setGlobal(g: GlobalSettings): void {
 		this.global = g;
 		this.players.clear();
+		if (this.started) this.syncNowPlaying();
 		void this.pollPlex();
 		void this.pollMusic();
 		this.emit();
@@ -245,6 +288,39 @@ export class NowPlaying {
 			this.busy.radio = false;
 		}
 		this.recompute();
+	}
+
+	private async pollSpotify(): Promise<void> {
+		if (this.busy.spotify || !this.isActive()) return;
+		this.busy.spotify = true;
+		try {
+			this.spot = this.global.spotifyEnabled === false ? null : await readSpotify();
+			this.spotAt = Date.now();
+			this.spotifyError = "";
+		} catch (e) {
+			this.spot = null;
+			const msg = e instanceof Error ? e.message : String(e);
+			if (msg !== this.spotifyError) this.log(`Spotify : ${msg}`);
+			this.spotifyError = msg;
+		} finally {
+			this.busy.spotify = false;
+		}
+		this.recompute();
+	}
+
+	/** Volume du Mac : suivi seulement quand la source « À l'écoute » est affichée. */
+	private async pollSystemVolume(): Promise<void> {
+		if (this.busy.sysvol || !this.isActive() || this.current?.src !== "nowplaying") return;
+		this.busy.sysvol = true;
+		try {
+			const v = await getSystemVolume();
+			if (v !== this.sysVolume) {
+				this.sysVolume = v;
+				this.recompute();
+			}
+		} finally {
+			this.busy.sysvol = false;
+		}
 	}
 
 	/** CariRadio est-elle lancée ? */
@@ -419,7 +495,8 @@ export class NowPlaying {
 			src: "radio",
 			state: r.status === "paused" ? "paused" : "playing",
 			trackId: `radio:${start}|${t?.title ?? ""}`,
-			artKey: `radio:${t?.cover || t?.title || r.station.name}`,
+			// pochette du morceau, sinon logo de la station (CariRadio ≥ 1.1.2 : champ artwork)
+			artKey: `radio:${r.artwork || t?.cover || t?.title || r.station.name}`,
 			title: t?.title || r.station.name,
 			artist: t?.artist || r.station.subtitle,
 			album: t?.album || `${r.station.name} ${r.station.subtitle}`.trim(),
@@ -430,11 +507,71 @@ export class NowPlaying {
 			shuffle: null,
 			repeat: null,
 			rating: null,
-			favorite: null,
+			favorite: t && typeof t.liked === "boolean" ? t.liked : null, // « J'aime » de CariRadio ≥ 1.3
 			codec: "RADIO",
 			quality: r.station.subtitle || "",
 			position: r.status === "paused" ? "PAUSE" : "DIRECT",
 			player: r.station.name,
+		};
+	}
+
+	private fromSpotify(m: SpotifySnapshot): NowState {
+		const trackId = m.id || `${m.artist}|${m.album}|${m.title}`;
+		return {
+			src: "spotify",
+			state: m.state,
+			trackId,
+			artKey: `spotify:${m.artworkUrl || trackId}`,
+			title: m.title,
+			artist: m.artist,
+			album: m.album,
+			posMs: m.positionMs,
+			posAt: this.spotAt,
+			durMs: m.durationMs,
+			volume: m.volume,
+			shuffle: m.shuffle,
+			repeat: m.repeat ? "all" : "off",
+			rating: null,
+			favorite: null,
+			codec: "SPOTIFY",
+			quality: "",
+			position: m.trackNumber > 0 ? `${m.trackNumber}` : "",
+			player: "Spotify",
+		};
+	}
+
+	private fromNowPlaying(n: NPState): NowState | null {
+		if (!n.bundleId || NP_EXCLUDED.has(n.bundleId) || !n.title) return null;
+		const name = this.npName.startsWith(`${n.bundleId}|`) ? this.npName.split("|")[1] : n.bundleId.split(".").pop()!;
+		const playing = n.playing && n.playbackRate !== 0;
+		const q =
+			n.totalQueueCount && n.queueIndex !== null
+				? `${n.queueIndex + 1}/${n.totalQueueCount}`
+				: n.trackNumber > 0
+					? n.totalTrackCount > 0
+						? `${n.trackNumber}/${n.totalTrackCount}`
+						: `${n.trackNumber}`
+					: "";
+		return {
+			src: "nowplaying",
+			state: playing ? "playing" : "paused",
+			trackId: `np:${n.bundleId}|${n.artist}|${n.album}|${n.title}`,
+			artKey: `np:${n.bundleId}|${n.artworkKey || `${n.artist}|${n.album}|${n.title}`}`,
+			title: n.title,
+			artist: n.artist,
+			album: n.album,
+			posMs: n.elapsedMs,
+			posAt: n.timestampMs,
+			durMs: n.durationMs,
+			volume: this.sysVolume, // pas de volume propre : volume du Mac
+			shuffle: n.shuffleMode === null ? null : n.shuffleMode !== 1,
+			repeat: n.repeatMode === null ? null : n.repeatMode === 2 ? "one" : n.repeatMode === 3 ? "all" : "off",
+			rating: null,
+			favorite: null,
+			codec: name.toUpperCase().slice(0, 10),
+			quality: "",
+			position: q,
+			player: name,
 		};
 	}
 
@@ -462,6 +599,9 @@ export class NowPlaying {
 		if (this.plex) cands.push(this.applyOverrides(this.fromPlex(this.plex)));
 		const rc = this.radio ? this.fromRadio(this.radio) : null;
 		if (rc) cands.push(this.applyOverrides(rc));
+		if (this.spot) cands.push(this.applyOverrides(this.fromSpotify(this.spot)));
+		const nc = this.global.nowPlayingEnabled !== false && this.np.state ? this.fromNowPlaying(this.np.state) : null;
+		if (nc) cands.push(this.applyOverrides(nc));
 
 		for (const c of cands) {
 			const id = `${c.trackId}|${c.state}`;
@@ -499,13 +639,27 @@ export class NowPlaying {
 			if (cur.src === "music") {
 				if ((this.music?.artworkCount ?? 0) > 0) buf = await readMusicArtworkLocal();
 				if (!buf) buf = await searchItunesArtwork(cur, this.global.itunesCountry || "FR");
-			} else if (cur.src === "radio") {
-				const cover = this.radio?.track?.cover;
-				if (cover) {
-					const res = await fetch(cover, { signal: AbortSignal.timeout(6000) }).catch(() => null);
+			} else if (cur.src === "spotify") {
+				const url = this.spot?.artworkUrl;
+				if (url) {
+					const res = await fetch(url, { signal: AbortSignal.timeout(6000) }).catch(() => null);
 					if (res?.ok) buf = Buffer.from(await res.arrayBuffer());
 				}
-				if (!buf && this.radio?.track) buf = await searchItunesArtwork({ artist: cur.artist, album: "", title: cur.title }, this.global.itunesCountry || "FR");
+				if (!buf) buf = await searchItunesArtwork(cur, this.global.itunesCountry || "FR");
+			} else if (cur.src === "nowplaying") {
+				buf = this.np.state?.artwork ?? null;
+				if (!buf) buf = await searchItunesArtwork(cur, this.global.itunesCountry || "FR");
+			} else if (cur.src === "radio") {
+				// pochette du morceau, ou logo de la station quand le morceau n'en a pas
+				const r = this.radio;
+				const url = r?.artwork || r?.track?.cover;
+				if (url) {
+					const res = await fetch(url, { signal: AbortSignal.timeout(6000) }).catch(() => null);
+					if (res?.ok) buf = Buffer.from(await res.arrayBuffer());
+					// logo dans un format que jimp ne lit pas (ICO, SVG, WebP) : on tente quand même la pochette iTunes
+					if (buf) await decode(buf).catch(() => (buf = null));
+				}
+				if (!buf && r?.track?.title) buf = await searchItunesArtwork({ artist: cur.artist, album: "", title: cur.title }, this.global.itunesCountry || "FR");
 			} else {
 				const cfg = this.plexConfig;
 				if (cfg && this.plex) buf = await readPlexArtwork(cfg, this.plex.thumb);
@@ -590,8 +744,27 @@ export class NowPlaying {
 		return this.radio ? this.radioCommand("/show") : launchRadio(false);
 	}
 
+	private async spotCmd(fn: () => Promise<unknown>): Promise<boolean> {
+		try {
+			await fn();
+			setTimeout(() => void this.pollSpotify(), 150);
+			return true;
+		} catch (e) {
+			this.log(`Spotify : ${e instanceof Error ? e.message : e}`);
+			return false;
+		}
+	}
+
 	async playPause(): Promise<boolean> {
 		const c = this.current;
+		if (c?.src === "spotify") {
+			this.setOv("state", c.state === "playing" ? "paused" : "playing", 1500);
+			return this.spotCmd(spotify.playPause);
+		}
+		if (c?.src === "nowplaying") {
+			this.setOv("state", c.state === "playing" ? "paused" : "playing", 1500);
+			return this.np.send("toggle");
+		}
 		if (c?.src === "radio") {
 			this.setOv("state", c.state === "playing" ? "paused" : "playing", 1500);
 			return this.radioCommand("/toggle");
@@ -610,20 +783,28 @@ export class NowPlaying {
 		const c = this.current;
 		if (!c) return false;
 		if (c.src === "radio") return this.radioCommand("/pause");
+		if (c.src === "spotify") return this.spotCmd(spotify.stop);
+		if (c.src === "nowplaying") return this.np.send("pause");
 		return c.src === "plex" ? this.plexCmd("/player/playback/stop") : this.musicCmd(music.stop);
 	}
 
 	async next(): Promise<boolean> {
 		const c = this.current;
-		if (!c || c.src === "radio") return false;
+		if (!c) return false;
+		if (c.src === "radio") return this.radioCommand("/station/next"); // radio : favori suivant de CariRadio
+		if (c.src === "spotify") return this.spotCmd(spotify.next);
+		if (c.src === "nowplaying") return this.np.send("next");
 		return c.src === "plex" ? this.plexCmd("/player/playback/skipNext") : this.musicCmd(music.next);
 	}
 
 	/** Précédent : revient au début si > 3 s, sinon piste précédente. */
 	async previous(): Promise<boolean> {
 		const c = this.current;
-		if (!c || c.src === "radio") return false;
+		if (!c) return false;
+		if (c.src === "radio") return this.radioCommand("/station/prev"); // radio : favori précédent de CariRadio
 		if (this.positionMs() > 3000) return this.seekTo(0);
+		if (c.src === "spotify") return this.spotCmd(spotify.previous);
+		if (c.src === "nowplaying") return this.np.send("previous");
 		return c.src === "plex" ? this.plexCmd("/player/playback/skipPrevious") : this.musicCmd(music.previous);
 	}
 
@@ -633,6 +814,8 @@ export class NowPlaying {
 		if (c.src === "radio") return false; // direct : pas de recherche
 		const target = Math.max(0, c.durMs > 0 ? Math.min(ms, c.durMs - 1000) : ms);
 		this.setOv("pos", target, 1500);
+		if (c.src === "spotify") return this.spotCmd(() => spotify.seek(target / 1000));
+		if (c.src === "nowplaying") return this.np.seek(target);
 		return c.src === "plex" ? this.plexCmd("/player/playback/seekTo", { offset: Math.round(target) }) : this.musicCmd(() => music.seek(target / 1000));
 	}
 
@@ -646,6 +829,11 @@ export class NowPlaying {
 		const vol = Math.round(Math.max(0, Math.min(100, v)));
 		this.setOv("volume", vol);
 		if (c.src === "radio") return this.radioCommand(`/volume?value=${vol}`);
+		if (c.src === "spotify") return this.spotCmd(() => spotify.setVolume(vol));
+		if (c.src === "nowplaying") {
+			this.sysVolume = vol;
+			return setSystemVolume(vol);
+		}
 		return c.src === "plex" ? this.plexCmd("/player/playback/setParameters", { volume: vol }) : this.musicCmd(() => music.setVolume(vol));
 	}
 
@@ -708,6 +896,8 @@ export class NowPlaying {
 		if (c.shuffle === null) return false;
 		const on = !c.shuffle;
 		this.setOv("shuffle", on);
+		if (c.src === "spotify") return this.spotCmd(() => spotify.setShuffle(on));
+		if (c.src === "nowplaying") return this.np.setShuffle(on);
 		return c.src === "plex" ? this.plexCmd("/player/playback/setParameters", { shuffle: on ? 1 : 0 }) : this.musicCmd(() => music.setShuffle(on));
 	}
 
@@ -715,8 +905,12 @@ export class NowPlaying {
 		const c = this.current;
 		if (!c) return false;
 		if (c.repeat === null) return false;
-		const next: Repeat = c.repeat === "off" || c.repeat === null ? "all" : c.repeat === "all" ? "one" : "off";
+		// Spotify (AppleScript) ne connaît que « répéter » oui/non
+		const next: Repeat =
+			c.src === "spotify" ? (c.repeat === "off" ? "all" : "off") : c.repeat === "off" || c.repeat === null ? "all" : c.repeat === "all" ? "one" : "off";
 		this.setOv("repeat", next);
+		if (c.src === "spotify") return this.spotCmd(() => spotify.setRepeat(next !== "off"));
+		if (c.src === "nowplaying") return this.np.setRepeat(next);
 		return c.src === "plex"
 			? this.plexCmd("/player/playback/setParameters", { repeat: next === "one" ? 1 : next === "all" ? 2 : 0 })
 			: this.musicCmd(() => music.setRepeat(next));
@@ -742,10 +936,46 @@ export class NowPlaying {
 
 	async toggleFavorite(): Promise<boolean> {
 		const c = this.current;
-		if (!c || c.src !== "music" || c.favorite === null) return false;
+		if (!c || c.favorite === null) return false;
 		const on = !c.favorite;
+		if (c.src === "radio") {
+			this.setOv("favorite", on, 2500);
+			return this.radioCommand("/like/toggle"); // « J'aime » de CariRadio
+		}
+		if (c.src !== "music") return false;
 		this.setOv("favorite", on, 4000);
 		return this.musicCmd(() => music.setFavorite(on));
+	}
+
+	/** Touche Station : lance une station de CariRadio (en ouvrant l'app si besoin). */
+	async radioStation(id: string): Promise<boolean> {
+		if (!id) return false;
+		if (!this.radio) {
+			if (!(await launchRadio(false))) return false;
+			// l'API locale répond quelques instants après le lancement
+			for (let i = 0; i < 20 && !(await readRadio()); i++) await new Promise((r) => setTimeout(r, 300));
+		}
+		return this.radioCommand(`/station?id=${encodeURIComponent(id)}`);
+	}
+
+	private logos = new Map<string, Promise<Img | null>>();
+	/** Logo d'une station (mis en cache ; null si introuvable ou format illisible). */
+	stationLogo(url: string): Promise<Img | null> {
+		if (!url) return Promise.resolve(null);
+		let p = this.logos.get(url);
+		if (!p) {
+			p = (async () => {
+				try {
+					const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+					return res.ok ? await decode(Buffer.from(await res.arrayBuffer())) : null;
+				} catch {
+					return null;
+				}
+			})();
+			this.logos.set(url, p);
+			if (this.logos.size > 60) this.logos.delete(this.logos.keys().next().value as string);
+		}
+		return p;
 	}
 
 	// ------------------------------------------------------------ playlists
@@ -780,6 +1010,7 @@ export class NowPlaying {
 	}
 
 	async playPlaylist(src: SourceId, id: string, shuffle: boolean): Promise<boolean> {
+		if (src === "spotify") return this.spotCmd(() => spotify.playUri(id, shuffle));
 		if (src === "music") return this.musicCmd(() => music.playPlaylist(id, shuffle));
 		const cfg = this.plexConfig;
 		if (!cfg) return false;
@@ -808,9 +1039,15 @@ export class NowPlaying {
 	statusText(): string {
 		const c = this.current;
 		const notes =
-			(this.plexError ? ` · Plex : ${this.plexError}` : "") + (this.musicError ? ` · Apple Music : ${this.musicError}` : "");
+			(this.plexError ? ` · Plex : ${this.plexError}` : "") +
+			(this.musicError ? ` · Apple Music : ${this.musicError}` : "") +
+			(this.spotifyError ? ` · Spotify : ${this.spotifyError}` : "") +
+			(this.global.nowPlayingEnabled !== false && this.np.error ? ` · À l'écoute : ${this.np.error}` : "");
 		if (!c) return `Aucune lecture en cours${notes}`;
-		const src = c.src === "music" ? "Apple Music" : c.src === "radio" ? `CariRadio (${c.player ?? "radio"})` : `Plex${c.player ? ` (${c.player})` : ""}`;
+		const src =
+			c.src === "radio" || c.src === "plex" || c.src === "nowplaying"
+				? `${SOURCE_LABEL[c.src]}${c.player ? ` (${c.player})` : ""}`
+				: SOURCE_LABEL[c.src];
 		const st = c.state === "playing" ? "▶︎" : "❚❚";
 		const a = this.art.get(c.artKey);
 		const artNote = a === undefined ? " · pochette en chargement" : a === null ? " · pochette introuvable" : "";
